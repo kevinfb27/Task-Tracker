@@ -75,9 +75,8 @@ const TaskListScreen: React.FC = () => {
       updatedTask.status =
         task.status === TaskStatus.CLOSED ? TaskStatus.OPEN : TaskStatus.CLOSED;
 
-      api
-        .updateTask(listId, task.id, updatedTask)
-        .then(() => api.fetchTasks(listId));
+     api.updateTask(listId!, task.id, updatedTask)
+       .then(() => api.fetchTasks(listId!));
     }
   };
 
@@ -136,9 +135,9 @@ const TaskListScreen: React.FC = () => {
           </TableCell>
         </TableRow>
       ));
-    } else {
-      return null;
-    }
+   } else {
+     return [];
+   }
   };
 
   if (isLoading) {
