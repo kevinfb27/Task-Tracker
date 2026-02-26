@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
   Spinner,
-} from "@nextui-org/react";
+} from "@heroui/react";
 import { ArrowLeft, Edit, Minus, Plus, Trash } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -23,16 +23,18 @@ import { TaskStatus } from "../domain/TaskStatus";
 const TaskListScreen: React.FC = () => {
   const { state, api } = useAppContext();
   const { listId } = useParams<{ listId: string }>();
-  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(true);
+
+  // ✅ Validación fuerte para TypeScript
+  if (!listId) {
+    return <div>Invalid task list</div>;
+  }
 
   const taskList = state.taskLists.find((tl) => tl.id === listId);
 
-  // ✅ Carga inicial segura
   useEffect(() => {
-    if (!listId) return;
-
-    const loadInitialData = async () => {
+    const loadData = async () => {
       setIsLoading(true);
       try {
         if (!taskList) {
@@ -46,27 +48,21 @@ const TaskListScreen: React.FC = () => {
       }
     };
 
-    loadInitialData();
-  }, [listId, taskList, api]);
+    loadData();
+  }, [listId]);
 
-  // ✅ Memo seguro
   const completionPercentage = useMemo(() => {
-    if (!listId) return 0;
-
     const tasks = state.tasks[listId];
     if (!tasks || tasks.length === 0) return 0;
 
-    const closedCount = tasks.filter(
+    const closedTasks = tasks.filter(
       (task) => task.status === TaskStatus.CLOSED
     ).length;
 
-    return (closedCount / tasks.length) * 100;
+    return (closedTasks / tasks.length) * 100;
   }, [state.tasks, listId]);
 
-  // ✅ Toggle seguro
   const toggleStatus = async (task: Task) => {
-    if (!listId) return;
-
     const updatedTask: Task = {
       ...task,
       status:
@@ -79,131 +75,134 @@ const TaskListScreen: React.FC = () => {
     await api.fetchTasks(listId);
   };
 
-  // ✅ Delete seguro
   const deleteTaskList = async () => {
-    if (!listId) return;
-
     await api.deleteTaskList(listId);
     navigate("/");
   };
 
-  // ✅ Tabla segura
-  const tableRows = () => {
-    if (!listId) return null;
-
-    const tasks = state.tasks[listId];
-    if (!tasks) return null;
-
-    return tasks.map((task) => (
-      <TableRow key={task.id} className="border-t">
-        <TableCell className="px-4 py-2">
-          <Checkbox
-            isSelected={task.status === TaskStatus.CLOSED}
-            onValueChange={() => toggleStatus(task)}
-            aria-label={`Mark task "${task.title}"`}
-          />
-        </TableCell>
-
-        <TableCell className="px-4 py-2">{task.title}</TableCell>
-        <TableCell className="px-4 py-2">{task.priority}</TableCell>
-
-        <TableCell className="px-4 py-2">
-          {task.dueDate && (
-            <DateInput
-              isDisabled
-              defaultValue={parseDate(
-                new Date(task.dueDate).toISOString().split("T")[0]
-              )}
-            />
-          )}
-        </TableCell>
-
-        <TableCell className="px-4 py-2">
-          <div className="flex space-x-2">
-            <Button
-              variant="ghost"
-              onClick={() =>
-                listId &&
-                navigate(`/task-lists/${listId}/edit-task/${task.id}`)
-              }
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
-
-            <Button
-              variant="ghost"
-              onClick={() => listId && api.deleteTask(listId, task.id)}
-            >
-              <Trash className="h-4 w-4" />
-            </Button>
-          </div>
-        </TableCell>
-      </TableRow>
-    ));
-  };
-
-  if (isLoading) return <Spinner />;
-
-  if (!listId) {
-    return <div className="p-4">Invalid Task List</div>;
+  if (isLoading) {
+    return <Spinner />;
   }
+
+  const tasks = state.tasks[listId] ?? [];
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <div className="flex w-full items-center justify-between">
-          <Button variant="ghost" onClick={() => navigate("/")}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+        <Button isIconOnly variant="light" onClick={() => navigate("/")}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
 
-          <h1 className="text-2xl font-bold mx-4">
-            {taskList?.title ?? "Unknown Task List"}
-          </h1>
+        <h1 className="text-2xl font-bold">
+          {taskList?.title ?? "Task List"}
+        </h1>
 
-          <Button
-            variant="ghost"
-            onClick={() => navigate(`/edit-task-list/${listId}`)}
-          >
-            <Edit className="h-4 w-4" />
-          </Button>
-        </div>
+        <Button
+          isIconOnly
+          variant="light"
+          onClick={() => navigate(`/edit-task-list/${listId}`)}
+        >
+          <Edit className="h-4 w-4" />
+        </Button>
       </div>
 
-      <Progress value={completionPercentage} className="mb-4" />
+      {/* Progress */}
+      <Progress
+        value={completionPercentage}
+        className="mb-4"
+        aria-label="Task completion"
+      />
 
+      {/* Add task */}
       <Button
-        onClick={() => navigate(`/task-lists/${listId}/new-task`)}
+        color="primary"
         className="mb-4 w-full"
+        onClick={() => navigate(`/task-lists/${listId}/new-task`)}
       >
-        <Plus className="h-4 w-4" /> Add Task
+        <Plus className="h-4 w-4 mr-2" />
+        Add Task
       </Button>
 
+      {/* Tasks table */}
       <div className="border rounded-lg overflow-hidden">
-        <Table className="w-full">
+        <Table aria-label="Tasks list">
           <TableHeader>
-            <TableColumn>Completed</TableColumn>
+            <TableColumn>Done</TableColumn>
             <TableColumn>Title</TableColumn>
             <TableColumn>Priority</TableColumn>
             <TableColumn>Due Date</TableColumn>
             <TableColumn>Actions</TableColumn>
           </TableHeader>
-          <TableBody>{tableRows()}</TableBody>
+
+          <TableBody emptyContent="No tasks yet">
+            {tasks.map((task) => (
+              <TableRow key={task.id}>
+                <TableCell>
+                  <Checkbox
+                    isSelected={task.status === TaskStatus.CLOSED}
+                    onValueChange={() => toggleStatus(task)}
+                  />
+                </TableCell>
+
+                <TableCell>{task.title}</TableCell>
+                <TableCell>{task.priority}</TableCell>
+
+                <TableCell>
+                  {task.dueDate && (
+                    <DateInput
+                      isDisabled
+                      defaultValue={parseDate(
+                        new Date(task.dueDate)
+                          .toISOString()
+                          .split("T")[0]
+                      )}
+                    />
+                  )}
+                </TableCell>
+
+                <TableCell>
+                  <div className="flex gap-2">
+                    <Button
+                      isIconOnly
+                      variant="light"
+                      onClick={() =>
+                        navigate(
+                          `/task-lists/${listId}/edit-task/${task.id}`
+                        )
+                      }
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+
+                    <Button
+                      isIconOnly
+                      variant="light"
+                      color="danger"
+                      onClick={() => api.deleteTask(listId, task.id)}
+                    >
+                      <Trash className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
         </Table>
       </div>
 
       <Spacer y={4} />
 
+      {/* Delete list */}
       <div className="flex justify-end">
         <Button
           color="danger"
-          startContent={<Minus size={20} />}
+          startContent={<Minus size={18} />}
           onClick={deleteTaskList}
         >
-          Delete TaskList
+          Delete Task List
         </Button>
       </div>
-
-      <Spacer y={4} />
     </div>
   );
 };
