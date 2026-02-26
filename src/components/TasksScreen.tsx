@@ -28,17 +28,20 @@ const TaskListScreen: React.FC = () => {
 
   const taskList = state.taskLists.find((tl) => tl.id === listId);
 
-  // ✅ Carga inicial segura
+  // =======================
+  // Load initial data
+  // =======================
   useEffect(() => {
-    if (!listId) return;
+    const safeListId = listId;
+    if (!safeListId) return;
 
     const loadInitialData = async () => {
       setIsLoading(true);
       try {
         if (!taskList) {
-          await api.getTaskList(listId);
+          await api.getTaskList(safeListId);
         }
-        await api.fetchTasks(listId);
+        await api.fetchTasks(safeListId);
       } catch (error) {
         console.error("Error loading task list:", error);
       } finally {
@@ -49,11 +52,14 @@ const TaskListScreen: React.FC = () => {
     loadInitialData();
   }, [listId, taskList, api]);
 
-  // ✅ Memo seguro
+  // =======================
+  // Completion percentage
+  // =======================
   const completionPercentage = useMemo(() => {
-    if (!listId) return 0;
+    const safeListId = listId;
+    if (!safeListId) return 0;
 
-    const tasks = state.tasks[listId];
+    const tasks = state.tasks[safeListId];
     if (!tasks || tasks.length === 0) return 0;
 
     const closedCount = tasks.filter(
@@ -63,9 +69,12 @@ const TaskListScreen: React.FC = () => {
     return (closedCount / tasks.length) * 100;
   }, [state.tasks, listId]);
 
-  // ✅ Toggle seguro
+  // =======================
+  // Toggle task status
+  // =======================
   const toggleStatus = async (task: Task) => {
-    if (!listId) return;
+    const safeListId = listId;
+    if (!safeListId) return;
 
     const updatedTask: Task = {
       ...task,
@@ -75,24 +84,30 @@ const TaskListScreen: React.FC = () => {
           : TaskStatus.CLOSED,
     };
 
-    await api.updateTask(listId, task.id, updatedTask);
-    await api.fetchTasks(listId);
+    await api.updateTask(safeListId, task.id, updatedTask);
+    await api.fetchTasks(safeListId);
   };
 
-  // ✅ Delete seguro
+  // =======================
+  // Delete task list
+  // =======================
   const deleteTaskList = async () => {
-    if (!listId) return;
+    const safeListId = listId;
+    if (!safeListId) return;
 
-    await api.deleteTaskList(listId);
+    await api.deleteTaskList(safeListId);
     navigate("/");
   };
 
-  // ✅ Tabla segura
-  const tableRows = () => {
-    if (!listId) return null;
+  // =======================
+  // Table rows (NEVER null)
+  // =======================
+  const tableRows = (): JSX.Element[] => {
+    const safeListId = listId;
+    if (!safeListId) return [];
 
-    const tasks = state.tasks[listId];
-    if (!tasks) return null;
+    const tasks = state.tasks[safeListId];
+    if (!tasks) return [];
 
     return tasks.map((task) => (
       <TableRow key={task.id} className="border-t">
@@ -100,7 +115,7 @@ const TaskListScreen: React.FC = () => {
           <Checkbox
             isSelected={task.status === TaskStatus.CLOSED}
             onValueChange={() => toggleStatus(task)}
-            aria-label={`Mark task "${task.title}"`}
+            aria-label={`Toggle task ${task.title}`}
           />
         </TableCell>
 
@@ -123,8 +138,7 @@ const TaskListScreen: React.FC = () => {
             <Button
               variant="ghost"
               onClick={() =>
-                listId &&
-                navigate(`/task-lists/${listId}/edit-task/${task.id}`)
+                navigate(`/task-lists/${safeListId}/edit-task/${task.id}`)
               }
             >
               <Edit className="h-4 w-4" />
@@ -132,7 +146,7 @@ const TaskListScreen: React.FC = () => {
 
             <Button
               variant="ghost"
-              onClick={() => listId && api.deleteTask(listId, task.id)}
+              onClick={() => api.deleteTask(safeListId, task.id)}
             >
               <Trash className="h-4 w-4" />
             </Button>
@@ -142,12 +156,20 @@ const TaskListScreen: React.FC = () => {
     ));
   };
 
-  if (isLoading) return <Spinner />;
+  // =======================
+  // Render states
+  // =======================
+  if (isLoading) {
+    return <Spinner />;
+  }
 
   if (!listId) {
     return <div className="p-4">Invalid Task List</div>;
   }
 
+  // =======================
+  // UI
+  // =======================
   return (
     <div className="p-4 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -172,8 +194,8 @@ const TaskListScreen: React.FC = () => {
       <Progress value={completionPercentage} className="mb-4" />
 
       <Button
-        onClick={() => navigate(`/task-lists/${listId}/new-task`)}
         className="mb-4 w-full"
+        onClick={() => navigate(`/task-lists/${listId}/new-task`)}
       >
         <Plus className="h-4 w-4" /> Add Task
       </Button>
