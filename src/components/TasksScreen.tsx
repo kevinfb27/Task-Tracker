@@ -1,17 +1,7 @@
 import { parseDate } from "@internationalized/date";
 import {
-  Button,
-  Checkbox,
-  DateInput,
-  Progress,
-  Spacer,
-  Table,
-  TableBody,
-  TableCell,
-  TableColumn,
-  TableHeader,
-  TableRow,
-  Spinner,
+  Button, Checkbox, DateInput, Progress, Spacer, Table,
+  TableBody, TableCell, TableColumn, TableHeader, TableRow, Spinner,
 } from "@nextui-org/react";
 import { ArrowLeft, Edit, Minus, Plus, Trash } from "lucide-react";
 import React, { useEffect, useState } from "react";
@@ -26,22 +16,16 @@ const TaskListScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Find task list directly from state instead of maintaining separate state
   const taskList = state.taskLists.find((tl) => listId === tl.id);
 
-  // Single useEffect to handle all initial data loading
   useEffect(() => {
     const loadInitialData = async () => {
       if (!listId) return;
-
       setIsLoading(true);
       try {
-        // Only fetch if we don't already have the task list
         if (!taskList) {
           await api.getTaskList(listId);
         }
-
-        // Attempt to fetch tasks - this may 404 but we'll try anyway
         try {
           await api.fetchTasks(listId);
         } catch (error) {
@@ -53,11 +37,9 @@ const TaskListScreen: React.FC = () => {
         setIsLoading(false);
       }
     };
-
     loadInitialData();
-  }, [listId]); // Only depend on listId
+  }, [listId]);
 
-  // Calculate completion percentage based on tasks
   const completionPercentage = React.useMemo(() => {
     if (listId && state.tasks[listId]) {
       const tasks = state.tasks[listId];
@@ -75,9 +57,9 @@ const TaskListScreen: React.FC = () => {
       updatedTask.status =
         task.status === TaskStatus.CLOSED ? TaskStatus.OPEN : TaskStatus.CLOSED;
 
-    api
-      .updateTask(listId!, task.id, updatedTask)
-      .then(() => api.fetchTasks(listId!));
+      api
+        .updateTask(listId, task.id, updatedTask)
+        .then(() => api.fetchTasks(listId!)); // ✅ Línea 79
     }
   };
 
@@ -127,7 +109,7 @@ const TaskListScreen: React.FC = () => {
               </Button>
               <Button
                 variant="ghost"
-                onClick={() => api.deleteTask(listId!, task.id)}
+                onClick={() => api.deleteTask(listId!, task.id)} // ✅ Línea 130
                 aria-label={`Delete task "${task.title}"`}
               >
                 <Trash className="h-4 w-4" />
@@ -136,51 +118,33 @@ const TaskListScreen: React.FC = () => {
           </TableCell>
         </TableRow>
       ));
-   } else {
-     return [];
-   }
+    } else {
+      return [];
+    }
   };
 
   if (isLoading) {
-    return <Spinner />; // Or your preferred loading indicator
+    return <Spinner />;
   }
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div className="flex w-full items-center justify-between">
-          <Button
-            variant="ghost"
-            aria-label="Go back to Task Lists"
-            onClick={() => navigate("/")}
-          >
+          <Button variant="ghost" aria-label="Go back to Task Lists" onClick={() => navigate("/")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-
           <h1 className="text-2xl font-bold mx-4">
             {taskList ? taskList.title : "Unknown Task List"}
           </h1>
-
-          <Button
-            variant="ghost"
-            aria-label={`Edit task list`}
-            onClick={() => navigate(`/edit-task-list/${listId}`)}
-          >
+          <Button variant="ghost" aria-label="Edit task list" onClick={() => navigate(`/edit-task-list/${listId}`)}>
             <Edit className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      <Progress
-        value={completionPercentage}
-        className="mb-4"
-        aria-label="Task completion progress"
-      />
-      <Button
-        onClick={() => navigate(`/task-lists/${listId}/new-task`)}
-        aria-label="Add new task"
-        className="mb-4 w-full"
-      >
+      <Progress value={completionPercentage} className="mb-4" aria-label="Task completion progress" />
+      <Button onClick={() => navigate(`/task-lists/${listId}/new-task`)} aria-label="Add new task" className="mb-4 w-full">
         <Plus className="h-4 w-4" /> Add Task
       </Button>
       <div className="border rounded-lg overflow-hidden">
@@ -197,16 +161,10 @@ const TaskListScreen: React.FC = () => {
       </div>
       <Spacer y={4} />
       <div className="flex justify-end">
-        <Button
-          color="danger"
-          startContent={<Minus size={20} />}
-          onClick={deleteTaskList}
-          aria-label="Delete current task list"
-        >
+        <Button color="danger" startContent={<Minus size={20} />} onClick={deleteTaskList} aria-label="Delete current task list">
           Delete TaskList
         </Button>
       </div>
-
       <Spacer y={4} />
     </div>
   );
