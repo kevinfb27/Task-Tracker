@@ -14,7 +14,7 @@ import {
   Spinner,
 } from "@nextui-org/react";
 import { ArrowLeft, Edit, Minus, Plus, Trash } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAppContext } from "../AppProvider";
 import Task from "../domain/Task";
@@ -22,31 +22,22 @@ import { TaskStatus } from "../domain/TaskStatus";
 
 const TaskListScreen: React.FC = () => {
   const { state, api } = useAppContext();
-  const { listId } = useParams();
-  const [isLoading, setIsLoading] = useState(true);
+  const { listId } = useParams<{ listId: string }>();
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Find task list directly from state instead of maintaining separate state
-  const taskList = state.taskLists.find((tl) => listId === tl.id);
+  const taskList = state.taskLists.find((tl) => tl.id === listId);
 
-  // Single useEffect to handle all initial data loading
   useEffect(() => {
-    const loadInitialData = async () => {
+    const loadData = async () => {
       if (!listId) return;
 
       setIsLoading(true);
       try {
-        // Only fetch if we don't already have the task list
         if (!taskList) {
           await api.getTaskList(listId);
         }
-
-        // Attempt to fetch tasks - this may 404 but we'll try anyway
-        try {
-          await api.fetchTasks(listId);
-        } catch (error) {
-          console.log("Tasks not available yet");
-        }
+        await api.fetchTasks(listId);
       } catch (error) {
         console.error("Error loading task list:", error);
       } finally {
@@ -54,137 +45,149 @@ const TaskListScreen: React.FC = () => {
       }
     };
 
-    loadInitialData();
-  }, [listId]); // Only depend on listId
+    loadData();
+  }, [listId, taskList, api]);
 
-  // Calculate completion percentage based on tasks
-  const completionPercentage = React.useMemo(() => {
-    if (listId && state.tasks[listId]) {
-      const tasks = state.tasks[listId];
-      const closeTaskCount = tasks.filter(
-        (task) => task.status === TaskStatus.CLOSED
-      ).length;
-      return tasks.length > 0 ? (closeTaskCount / tasks.length) * 100 : 0;
-    }
-    return 0;
+  const completionPercentage = useMemo(() => {
+    if (!listId || !state.tasks[listId]) return 0;
+
+    const tasks = state.tasks[listId];
+    const closed = tasks.filter(
+      (t) => t.status === TaskStatus.CLOSED
+    ).length;
+
+    return tasks.length ? (closed / tasks.length) * 100 : 0;
   }, [state.tasks, listId]);
 
   const toggleStatus = (task: Task) => {
-    if (listId) {
-      const updatedTask = { ...task };
-      updatedTask.status =
-        task.status === TaskStatus.CLOSED ? TaskStatus.OPEN : TaskStatus.CLOSED;
+    if (!listId || !task.id) return;
 
-      api
-        .updateTask(listId, task.id, updatedTask)
-        .then(() => api.fetchTasks(listId));
-    }
+    const updatedTask: Task = {
+      ...task,
+      status:
+        task.status === TaskStatus.CLOSED
+          ? TaskStatus.OPEN
+          : TaskStatus.CLOSED,
+    };
+
+    api
+      .updateTask(listId, task.id, updatedTask)
+      .then(() => api.fetchTasks(listId));
   };
 
   const deleteTaskList = async () => {
-    if (null != listId) {
-      await api.deleteTaskList(listId);
-      navigate("/");
-    }
+    if (!listId) return;
+
+    await api.deleteTaskList(listId);
+    navigate("/");
   };
 
   const tableRows = () => {
-    if (null != listId && null != state.tasks[listId]) {
-      return state.tasks[listId].map((task) => (
-        <TableRow key={task.id} className="border-t">
-          <TableCell className="px-4 py-2">
-            <Checkbox
-              isSelected={TaskStatus.CLOSED == task.status}
-              onValueChange={() => toggleStatus(task)}
-              aria-label={`Mark task "${task.title}" as ${
-                TaskStatus.CLOSED == task.status ? "open" : "closed"
-              }`}
+    if (!listId || !state.tasks[listId]) return [];
+
+    return state.tasks[listId].map((task) => (
+      <TableRow key={task.id ?? crypto.randomUUID()} className="border-t">
+        <TableCell className="px-4 py-2">
+          <Checkbox
+            isSelected={task.status === TaskStatus.CLOSED}
+            onValueChange={() => toggleStatus(task)}
+            aria-label={`Mark task "${task.title}" as ${
+              task.status === TaskStatus.CLOSED ? "open" : "closed"
+            }`}
+          />
+        </TableCell>
+
+        <TableCell className="px-4 py-2">{task.title}</TableCell>
+
+        <TableCell className="px-4 py-2">{task.priority}</TableCell>
+
+        <TableCell className="px-4 py-2">
+          {task.dueDate && (
+            <DateInput
+              isDisabled
+              defaultValue={parseDate(
+                new Date(task.dueDate).toISOString().split("T")[0]
+              )}
+              aria-label={`Due date for task "${task.title}"`}
             />
-          </TableCell>
-          <TableCell className="px-4 py-2">{task.title}</TableCell>
-          <TableCell className="px-4 py-2">{task.priority}</TableCell>
-          <TableCell className="px-4 py-2">
-            {task.dueDate && (
-              <DateInput
-                isDisabled
-                defaultValue={parseDate(
-                  new Date(task.dueDate).toISOString().split("T")[0]
-                )}
-                aria-label={`Due date for task "${task.title}"`}
-              />
-            )}
-          </TableCell>
-          <TableCell className="px-4 py-2">
-            <div className="flex space-x-2">
-              <Button
-                variant="ghost"
-                aria-label={`Edit task "${task.title}"`}
-                onClick={() =>
-                  navigate(`/task-lists/${listId}/edit-task/${task.id}`)
-                }
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => api.deleteTask(listId, task.id)}
-                aria-label={`Delete task "${task.title}"`}
-              >
-                <Trash className="h-4 w-4" />
-              </Button>
-            </div>
-          </TableCell>
-        </TableRow>
-      ));
-    } else {
-      return null;
-    }
+          )}
+        </TableCell>
+
+        <TableCell className="px-4 py-2">
+          <div className="flex space-x-2">
+            <Button
+              variant="ghost"
+              aria-label={`Edit task "${task.title}"`}
+              onClick={() => {
+                if (!listId || !task.id) return;
+                navigate(`/task-lists/${listId}/edit-task/${task.id}`);
+              }}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              aria-label={`Delete task "${task.title}"`}
+              onClick={() => {
+                if (!listId || !task.id) return;
+                api.deleteTask(listId, task.id);
+              }}
+            >
+              <Trash className="h-4 w-4" />
+            </Button>
+          </div>
+        </TableCell>
+      </TableRow>
+    ));
   };
 
   if (isLoading) {
-    return <Spinner />; // Or your preferred loading indicator
+    return <Spinner />;
   }
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <div className="flex w-full items-center justify-between">
-          <Button
-            variant="ghost"
-            aria-label="Go back to Task Lists"
-            onClick={() => navigate("/")}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+        <Button
+          variant="ghost"
+          aria-label="Go back"
+          onClick={() => navigate("/")}
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
 
-          <h1 className="text-2xl font-bold mx-4">
-            {taskList ? taskList.title : "Unknown Task List"}
-          </h1>
+        <h1 className="text-2xl font-bold">
+          {taskList?.title ?? "Unknown Task List"}
+        </h1>
 
-          <Button
-            variant="ghost"
-            aria-label={`Edit task list`}
-            onClick={() => navigate(`/edit-task-list/${listId}`)}
-          >
-            <Edit className="h-4 w-4" />
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          aria-label="Edit task list"
+          onClick={() => {
+            if (!listId) return;
+            navigate(`/edit-task-list/${listId}`);
+          }}
+        >
+          <Edit className="h-4 w-4" />
+        </Button>
       </div>
 
-      <Progress
-        value={completionPercentage}
-        className="mb-4"
-        aria-label="Task completion progress"
-      />
+      <Progress value={completionPercentage} className="mb-4" />
+
       <Button
-        onClick={() => navigate(`/task-lists/${listId}/new-task`)}
-        aria-label="Add new task"
         className="mb-4 w-full"
+        aria-label="Add new task"
+        onClick={() => {
+          if (!listId) return;
+          navigate(`/task-lists/${listId}/new-task`);
+        }}
       >
         <Plus className="h-4 w-4" /> Add Task
       </Button>
+
       <div className="border rounded-lg overflow-hidden">
-        <Table className="w-full" aria-label="Tasks list">
+        <Table aria-label="Tasks list">
           <TableHeader>
             <TableColumn>Completed</TableColumn>
             <TableColumn>Title</TableColumn>
@@ -195,19 +198,19 @@ const TaskListScreen: React.FC = () => {
           <TableBody>{tableRows()}</TableBody>
         </Table>
       </div>
+
       <Spacer y={4} />
+
       <div className="flex justify-end">
         <Button
           color="danger"
           startContent={<Minus size={20} />}
+          aria-label="Delete task list"
           onClick={deleteTaskList}
-          aria-label="Delete current task list"
         >
           Delete TaskList
         </Button>
       </div>
-
-      <Spacer y={4} />
     </div>
   );
 };
